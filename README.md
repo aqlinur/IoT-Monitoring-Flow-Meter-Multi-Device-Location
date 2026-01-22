@@ -39,5 +39,7 @@ Json Payload Example From ESP32 :
   "daily_reset_pending": false,
   "status": "online"
 }
-For Node-Red Just Import The "Node-Red IoT Flow Monitoring Multi Device Bridge.json"
+For Node-Red Just Import The "Node-Red IoT Flow Monitoring Multi Device Bridge.json" 
+Dont forget setting mqtt configuration and database cofiguration in node-red 
+
 For MSSQL Database use file script.sql and execute in MSSQL Query 
