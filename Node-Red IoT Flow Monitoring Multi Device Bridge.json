@@ -1128,8 +1128,8 @@
     {
         "id": "99ea319b66e60598",
         "type": "mqtt-broker",
-        "name": "Xi-105",
-        "broker": "broker.hivemq.com",
+        "name": "Stars",
+        "broker": "localhost",
         "port": 1883,
         "clientid": "",
         "autoConnect": true,
