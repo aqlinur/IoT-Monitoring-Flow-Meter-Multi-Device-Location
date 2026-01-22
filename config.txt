@@ -1,0 +1,35 @@
+# Industrial Monitoring System Configuration
+# Device Configuration
+device_id=Plumb-01
+location_name=PE
+mqtt_prefix=01
+
+# Hardware Pin Configuration
+flow_pin=34
+button_flow_pin=14
+button_power_pin=27
+rs485_rx_pin=16
+rs485_tx_pin=17
+rs485_de_re_pin=4
+
+# Optional: Calibration Configuration
+# calibration_factor=6.0
+
+# Optional: Network Configuration
+# wifi_ssid=Wokwi-GUEST
+# wifi_password=
+# mqtt_server=broker.hivemq.com
+# mqtt_port=1883
+
+# Optional: Daily Reset Configuration
+# daily_reset_hour=23
+# daily_reset_minute=59
+# daily_reset_second=30
+
+# Optional: Intervals (milliseconds)
+# sd_write_interval=10000
+# sd_read_interval=30000
+# mqtt_publish_interval=1000
+# oled_update_interval=1000
+# flow_calc_interval=1000
+# power_calc_interval=1000
