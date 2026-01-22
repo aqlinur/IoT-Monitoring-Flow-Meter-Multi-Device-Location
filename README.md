@@ -19,9 +19,9 @@ SSID Password
 MQTT Broker Server //for public testing u can use broker.hivemq.com or test.mosquitto.org || for localhost broker u can use ipv4 addres of installed computer mosquitto service 
 MQTT Port //1883 (TCP)
 
-jangan lupa atur config.txt dari sdcard
+Dont forget to setting config.txt from sdcard
 
-Contoh Json Payload From ESP32 : 
+Json Payload Example From ESP32 : 
 {
   "device_id": "Plumb-01",
   "location": "PE",
