@@ -1,0 +1,1190 @@
+[
+    {
+        "id": "industrial-monitoring",
+        "type": "tab",
+        "label": "Industrial Monitoring System",
+        "disabled": false,
+        "info": "Flow untuk ESP32 Industrial Monitoring tanpa dashboard"
+    },
+    {
+        "id": "receive-commands",
+        "type": "mqtt in",
+        "z": "industrial-monitoring",
+        "name": "Receive Device Commands",
+        "topic": "industry/sensor/control/+",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "99ea319b66e60598",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 140,
+        "y": 480,
+        "wires": [
+            [
+                "log-commands",
+                "process-device-command"
+            ]
+        ]
+    },
+    {
+        "id": "receive-global",
+        "type": "mqtt in",
+        "z": "industrial-monitoring",
+        "name": "Receive Global Commands",
+        "topic": "industry/command/all",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "99ea319b66e60598",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 130,
+        "y": 540,
+        "wires": [
+            [
+                "log-global",
+                "process-global-command"
+            ]
+        ]
+    },
+    {
+        "id": "receive-status",
+        "type": "mqtt in",
+        "z": "industrial-monitoring",
+        "name": "Receive Status",
+        "topic": "industry/device/status",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "99ea319b66e60598",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 100,
+        "y": 640,
+        "wires": [
+            [
+                "parse-status-json",
+                "log-status"
+            ]
+        ]
+    },
+    {
+        "id": "receive-pzem",
+        "type": "mqtt in",
+        "z": "industrial-monitoring",
+        "name": "Receive PZEM Status",
+        "topic": "industry/pzem/status",
+        "qos": "1",
+        "datatype": "auto",
+        "broker": "99ea319b66e60598",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 120,
+        "y": 720,
+        "wires": [
+            [
+                "parse-pzem-json",
+                "log-pzem"
+            ]
+        ]
+    },
+    {
+        "id": "process-device-command",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Process Device Commands",
+        "func": "// Process commands sent to specific device\nlet command = msg.payload;\nlet timestamp = new Date().toISOString();\n\n// Log the command\nnode.log(`Device command received: ${command} at ${timestamp}`);\n\n// Prepare response\nmsg.topic = \"device_command_log\";\nmsg.payload = {\n    command: command,\n    device: \"PLANT_01\",\n    timestamp: timestamp,\n    processed: true\n};\n\n// Handle specific commands (optional processing)\nswitch(command) {\n    case \"reset_volume\":\n        node.warn(\"Volume reset command received\");\n        break;\n    case \"reset_energy\":\n        node.warn(\"Energy reset command received\");\n        break;\n    case \"system_status\":\n        node.warn(\"System status request received\");\n        break;\n    case \"display_flow\":\n        node.warn(\"Display flow mode command received\");\n        break;\n    case \"display_power\":\n        node.warn(\"Display power mode command received\");\n        break;\n    case \"reboot\":\n        node.warn(\"Device reboot command received\");\n        break;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 420,
+        "y": 520,
+        "wires": [
+            [
+                "log-command-history"
+            ]
+        ]
+    },
+    {
+        "id": "process-global-command",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Process Global Commands",
+        "func": "// Process global commands sent to all devices\nlet command = msg.payload;\nlet timestamp = new Date().toISOString();\n\n// Log the command\nnode.log(`Global command received: ${command} at ${timestamp}`);\n\n// Prepare response\nmsg.topic = \"global_command_log\";\nmsg.payload = {\n    command: command,\n    scope: \"global\",\n    timestamp: timestamp,\n    processed: true\n};\n\n// Handle specific commands\nif (command.startsWith(\"set_interval:\")) {\n    // Parse interval settings\n    let params = command.substring(13);\n    node.warn(`Interval settings: ${params}`);\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 420,
+        "y": 560,
+        "wires": [
+            [
+                "log-global-history"
+            ]
+        ]
+    },
+    {
+        "id": "parse-status-json",
+        "type": "json",
+        "z": "industrial-monitoring",
+        "name": "Parse Status JSON",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 350,
+        "y": 640,
+        "wires": [
+            [
+                "analyze-system-status"
+            ]
+        ]
+    },
+    {
+        "id": "parse-pzem-json",
+        "type": "json",
+        "z": "industrial-monitoring",
+        "name": "Parse PZEM JSON",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 350,
+        "y": 720,
+        "wires": [
+            [
+                "analyze-pzem-status"
+            ]
+        ]
+    },
+    {
+        "id": "analyze-system-status",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Analyze System Status",
+        "func": "// Analyze system status data\nlet data = msg.payload;\n\n// Calculate uptime if available\nlet uptime = \"N/A\";\nif (data.timestamp) {\n    try {\n        let deviceTime = new Date(data.timestamp);\n        let now = new Date();\n        let diff = Math.floor((now - deviceTime) / 1000); // seconds\n        \n        if (diff > 0) {\n            let hours = Math.floor(diff / 3600);\n            let minutes = Math.floor((diff % 3600) / 60);\n            let seconds = diff % 60;\n            uptime = `${hours}h ${minutes}m ${seconds}s`;\n        }\n    } catch(e) {\n        uptime = \"Unknown\";\n    }\n}\n\n// Prepare status report\nmsg.payload = {\n    device_id: data.device || \"PLANT_01\",\n    location: data.location || \"Production Line A\",\n    timestamp: data.timestamp || new Date().toISOString(),\n    system_status: {\n        flow_rate: data.flow_rate || 0,\n        volume: data.volume || 0,\n        power: data.power || 0,\n        energy: data.energy || 0,\n        pzem_status: data.pzem_status || \"unknown\",\n        wifi_status: data.wifi_status || \"unknown\",\n        mqtt_status: data.mqtt_status || \"unknown\",\n        buffer_count: data.buffer_count || 0\n    },\n    uptime: uptime,\n    last_update: new Date().toISOString()\n};\n\n// Log status\nnode.log(`System Status - Device: ${msg.payload.device_id}, PZEM: ${msg.payload.system_status.pzem_status}, WiFi: ${msg.payload.system_status.wifi_status}`);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 590,
+        "y": 640,
+        "wires": [
+            [
+                "store-system-status"
+            ]
+        ]
+    },
+    {
+        "id": "analyze-pzem-status",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Analyze PZEM Status",
+        "func": "// Analyze PZEM power sensor status\nlet data = msg.payload;\n\n// Calculate power quality metrics\nlet powerQuality = \"Good\";\nlet issues = [];\n\nif (data.voltage) {\n    if (data.voltage < 200) issues.push(\"Low voltage\");\n    if (data.voltage > 240) issues.push(\"High voltage\");\n}\n\nif (data.frequency) {\n    if (data.frequency < 49.5 || data.frequency > 50.5) issues.push(\"Frequency out of range\");\n}\n\nif (data.power_factor) {\n    if (data.power_factor < 0.8) issues.push(\"Low power factor\");\n}\n\nif (issues.length > 0) {\n    powerQuality = issues.join(\", \");\n}\n\n// Prepare PZEM report\nmsg.payload = {\n    device: data.device || \"PLANT_01\",\n    pzem_connected: data.pzem_connected || false,\n    measurements: {\n        voltage: data.voltage || 0,\n        current: data.current || 0,\n        power: data.power || 0,\n        energy: data.energy || 0,\n        frequency: data.frequency || 0,\n        power_factor: data.power_factor || 0\n    },\n    power_quality: powerQuality,\n    issues: issues,\n    timestamp: new Date().toISOString()\n};\n\n// Log PZEM status\nif (!data.pzem_connected) {\n    node.warn(\"PZEM sensor is disconnected!\");\n} else {\n    node.log(`PZEM Status - V: ${data.voltage || 0}V, I: ${data.current || 0}A, P: ${data.power || 0}W`);\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 580,
+        "y": 720,
+        "wires": [
+            [
+                "store-pzem-status"
+            ]
+        ]
+    },
+    {
+        "id": "send-command",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Send Reset Volume",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "industry/sensor/control/PLANT_01",
+        "payload": "reset_volume",
+        "payloadType": "str",
+        "x": 130,
+        "y": 820,
+        "wires": [
+            [
+                "mqtt-out-command"
+            ]
+        ]
+    },
+    {
+        "id": "send-status-request",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Request System Status",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "industry/sensor/control/PLANT_01",
+        "payload": "system_status",
+        "payloadType": "str",
+        "x": 140,
+        "y": 880,
+        "wires": [
+            [
+                "mqtt-out-command"
+            ]
+        ]
+    },
+    {
+        "id": "send-interval",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Set MQTT Interval",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "industry/sensor/control/PLANT_01",
+        "payload": "interval:5000",
+        "payloadType": "str",
+        "x": 130,
+        "y": 940,
+        "wires": [
+            [
+                "mqtt-out-command"
+            ]
+        ]
+    },
+    {
+        "id": "send-global-command",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Send Global Status",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "industry/command/all",
+        "payload": "status_all",
+        "payloadType": "str",
+        "x": 690,
+        "y": 820,
+        "wires": [
+            [
+                "mqtt-out-global"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-out-command",
+        "type": "mqtt out",
+        "z": "industrial-monitoring",
+        "name": "MQTT Out Command",
+        "topic": "",
+        "qos": "1",
+        "retain": false,
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "99ea319b66e60598",
+        "x": 440,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "mqtt-out-global",
+        "type": "mqtt out",
+        "z": "industrial-monitoring",
+        "name": "MQTT Out Global",
+        "topic": "",
+        "qos": "1",
+        "retain": false,
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "99ea319b66e60598",
+        "x": 910,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "log-commands",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Commands",
+        "filename": "logs/commands.log",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 400,
+        "y": 480,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-global",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Global Commands",
+        "filename": "logs/global_commands.log",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 400,
+        "y": 600,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-status",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Status",
+        "filename": "logs/status.log",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 330,
+        "y": 680,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-pzem",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log PZEM",
+        "filename": "logs/pzem.log",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 330,
+        "y": 760,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-command-history",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Command History",
+        "filename": "logs/command_history.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 680,
+        "y": 520,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-global-history",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Global History",
+        "filename": "logs/global_history.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 670,
+        "y": 560,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "store-system-status",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store System Status",
+        "filename": "data/status/system_status.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 840,
+        "y": 640,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "store-pzem-status",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store PZEM Status",
+        "filename": "data/status/pzem_status.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 790,
+        "y": 720,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "schedule-daily-report",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Daily Report (8:00 AM)",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "0 8 * * *",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "generate_daily_report",
+        "payload": "daily_report",
+        "payloadType": "str",
+        "x": 470,
+        "y": 900,
+        "wires": [
+            [
+                "generate-report"
+            ]
+        ]
+    },
+    {
+        "id": "generate-report",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Generate Daily Report",
+        "func": "// Generate daily report\nlet report = {\n    type: \"daily_report\",\n    date: new Date().toISOString().slice(0, 10),\n    device: \"Plumb-01\",\n    summary: {\n        total_volume: context.stats ? context.stats.totalVolume : 0,\n        total_energy: context.stats ? context.stats.totalEnergy : 0,\n        max_flow: context.stats && context.stats.flowReadings ? Math.max(...context.stats.flowReadings) : 0,\n        max_power: context.stats && context.stats.powerReadings ? Math.max(...context.stats.powerReadings) : 0,\n        alarm_count: context.alarmCount || 0\n    },\n    generated_at: new Date().toISOString()\n};\n\n// Reset daily counters\ncontext.alarmCount = 0;\n\nmsg.payload = report;\nmsg.filename = `reports/daily_${report.date}.json`;\n\n// Log report generation\nnode.log(`Daily report generated for ${report.date}`);\nconsole.log(\"=== DAILY REPORT ===\");\nconsole.log(JSON.stringify(report, null, 2));\nconsole.log(\"===================\");\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 760,
+        "y": 900,
+        "wires": [
+            [
+                "store-daily-report",
+                "log-report"
+            ]
+        ]
+    },
+    {
+        "id": "store-daily-report",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store Daily Report",
+        "filename": "",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 1050,
+        "y": 900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-report",
+        "type": "debug",
+        "z": "industrial-monitoring",
+        "name": "Log Report",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 1040,
+        "y": 960,
+        "wires": []
+    },
+    {
+        "id": "manual-command",
+        "type": "inject",
+        "z": "industrial-monitoring",
+        "name": "Manual Command Input",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "industry/sensor/control/PLANT_01",
+        "payload": "",
+        "payloadType": "str",
+        "x": 140,
+        "y": 1000,
+        "wires": [
+            [
+                "mqtt-out-command"
+            ]
+        ]
+    },
+    {
+        "id": "d79e09a69a3480bb",
+        "type": "mqtt in",
+        "z": "industrial-monitoring",
+        "name": "Receive Sensor Data",
+        "topic": "industry/sensor/data/+",
+        "qos": "1",
+        "datatype": "auto-detect",
+        "broker": "99ea319b66e60598",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 160,
+        "wires": [
+            [
+                "11fc1e14c9cbe1e6",
+                "31826edc8642bc50",
+                "e62c2d3b4ee7ac65",
+                "268b7c33ceb562f1",
+                "fabf6da1d3d65d7e",
+                "16a5d0c478603a27"
+            ]
+        ]
+    },
+    {
+        "id": "e62c2d3b4ee7ac65",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Validate Sensor Data",
+        "func": "// Validasi data dari ESP32 (payload baru)\nlet data = msg.payload;\nlet isValid = true;\nlet validationErrors = [];\n\n// Check required fields untuk payload baru\nconst requiredFields = ['device_id', 'timestamp', 'flow_rate', 'active_power', 'daily_volume', 'last_reset_date'];\nrequiredFields.forEach(field => {\n    if (!data[field] && data[field] !== 0) {\n        validationErrors.push(`Missing ${field}`);\n        isValid = false;\n    }\n});\n\n// Check numeric values - tambah daily_volume\nconst numericFields = ['flow_rate', 'total_volume', 'daily_volume', 'voltage', 'current', 'active_power', 'energy', 'frequency', 'power_factor'];\nnumericFields.forEach(field => {\n    if (data[field] !== undefined && data[field] !== null) {\n        let value = parseFloat(data[field]);\n        if (isNaN(value) || !isFinite(value)) {\n            data[field] = 0; // Reset invalid values to 0\n            validationErrors.push(`Invalid ${field}: ${data[field]}`);\n        }\n    }\n});\n\n// Validate boolean field\ndata.daily_reset_pending = (data.daily_reset_pending === true || data.daily_reset_pending === 'true' || data.daily_reset_pending === 1);\n\n// Add validation info\nmsg.payload = data;\nmsg.validation = {\n    valid: isValid,\n    errors: validationErrors,\n    timestamp: new Date().toISOString()\n};\n\n// Log validation errors\nif (validationErrors.length > 0) {\n    node.warn(`Validation errors: ${validationErrors.join(', ')}`);\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 460,
+        "y": 180,
+        "wires": [
+            [
+                "bbeb800a3ff57891",
+                "544ad5886e2865a4"
+            ]
+        ]
+    },
+    {
+        "id": "bbeb800a3ff57891",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Check Alarms & Thresholds",
+        "func": "// Check for alarm conditions (updated for new payload)\nlet data = msg.payload;\nlet alarms = [];\n\n// Threshold configuration (updated)\nlet thresholds = {\n    flow_rate_max: 100,    // L/min\n    daily_volume_max: 1000, // L (maksimum volume harian)\n    power_max: 5000,       // W\n    voltage_min: 200,      // V\n    voltage_max: 240,      // V\n    current_max: 25,       // A\n    pf_min: 0.8,           // Power factor\n    frequency_min: 49.5,   // Hz\n    frequency_max: 50.5,   // Hz\n    energy_daily_max: 50   // kWh (maksimum energi harian)\n};\n\n// Flow rate alarm\nif (data.flow_rate > thresholds.flow_rate_max) {\n    alarms.push({\n        type: 'HIGH_FLOW_RATE',\n        value: data.flow_rate,\n        threshold: thresholds.flow_rate_max,\n        severity: 'HIGH',\n        message: `Flow rate exceeded: ${data.flow_rate.toFixed(1)} L/min > ${thresholds.flow_rate_max} L/min`\n    });\n}\n\n// Daily volume alarm\nif (data.daily_volume > thresholds.daily_volume_max) {\n    alarms.push({\n        type: 'HIGH_DAILY_VOLUME',\n        value: data.daily_volume,\n        threshold: thresholds.daily_volume_max,\n        severity: 'MEDIUM',\n        message: `Daily volume high: ${data.daily_volume.toFixed(1)} L > ${thresholds.daily_volume_max} L`\n    });\n}\n\n// Power alarm\nif (data.active_power > thresholds.power_max) {\n    alarms.push({\n        type: 'HIGH_POWER',\n        value: data.active_power,\n        threshold: thresholds.power_max,\n        severity: 'HIGH',\n        message: `Power exceeded: ${data.active_power.toFixed(0)} W > ${thresholds.power_max} W`\n    });\n}\n\n// Voltage alarms\nif (data.voltage < thresholds.voltage_min) {\n    alarms.push({\n        type: 'LOW_VOLTAGE',\n        value: data.voltage,\n        threshold: thresholds.voltage_min,\n        severity: 'MEDIUM',\n        message: `Low voltage: ${data.voltage.toFixed(1)} V < ${thresholds.voltage_min} V`\n    });\n} else if (data.voltage > thresholds.voltage_max) {\n    alarms.push({\n        type: 'HIGH_VOLTAGE',\n        value: data.voltage,\n        threshold: thresholds.voltage_max,\n        severity: 'HIGH',\n        message: `High voltage: ${data.voltage.toFixed(1)} V > ${thresholds.voltage_max} V`\n    });\n}\n\n// Current alarm\nif (data.current > thresholds.current_max) {\n    alarms.push({\n        type: 'HIGH_CURRENT',\n        value: data.current,\n        threshold: thresholds.current_max,\n        severity: 'HIGH',\n        message: `High current: ${data.current.toFixed(2)} A > ${thresholds.current_max} A`\n    });\n}\n\n// Power factor alarm\nif (data.power_factor < thresholds.pf_min) {\n    alarms.push({\n        type: 'LOW_POWER_FACTOR',\n        value: data.power_factor,\n        threshold: thresholds.pf_min,\n        severity: 'LOW',\n        message: `Low power factor: ${data.power_factor.toFixed(2)} < ${thresholds.pf_min}`\n    });\n}\n\n// Frequency alarm\nif (data.frequency < thresholds.frequency_min || data.frequency > thresholds.frequency_max) {\n    alarms.push({\n        type: 'FREQUENCY_OUT_OF_RANGE',\n        value: data.frequency,\n        threshold: `${thresholds.frequency_min}-${thresholds.frequency_max}`,\n        severity: 'MEDIUM',\n        message: `Frequency out of range: ${data.frequency.toFixed(1)} Hz`\n    });\n}\n\n// Daily energy alarm\nif (data.energy > thresholds.energy_daily_max) {\n    alarms.push({\n        type: 'HIGH_DAILY_ENERGY',\n        value: data.energy,\n        threshold: thresholds.energy_daily_max,\n        severity: 'MEDIUM',\n        message: `Daily energy high: ${data.energy.toFixed(2)} kWh > ${thresholds.energy_daily_max} kWh`\n    });\n}\n\n// Check daily reset pending\nif (data.daily_reset_pending) {\n    alarms.push({\n        type: 'DAILY_RESET_PENDING',\n        value: 'true',\n        threshold: 'false',\n        severity: 'INFO',\n        message: `Daily reset pending at ${data.last_reset_date}`\n    });\n}\n\n// Check PZEM status\nif (data.status === 'offline') {\n    alarms.push({\n        type: 'PZEM_OFFLINE',\n        value: 'offline',\n        threshold: 'online',\n        severity: 'HIGH',\n        message: 'PZEM-016 sensor is offline'\n    });\n}\n\n// Add alarms to message\nmsg.alarms = alarms;\nmsg.has_alarms = alarms.length > 0;\n\n// Log alarms if any\nif (alarms.length > 0) {\n    node.warn(`Alarms detected: ${alarms.length} alarm(s)`);\n    alarms.forEach(alarm => {\n        node.warn(`${alarm.severity}: ${alarm.message}`);\n    });\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 740,
+        "y": 140,
+        "wires": [
+            [
+                "a9502051bb7b8542",
+                "d0cf2f4f16170798"
+            ]
+        ]
+    },
+    {
+        "id": "268b7c33ceb562f1",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Calculate Statistics",
+        "func": "// Calculate statistics from sensor data (updated for new payload)\nlet data = msg.payload;\n\n// Initialize context storage\nif (!context.stats) {\n    context.stats = {\n        flowReadings: [],\n        powerReadings: [],\n        dailyVolumeReadings: [],\n        startTime: Date.now(),\n        lastResetDate: data.last_reset_date || '',\n        dailyResetCount: 0\n    };\n}\n\n// Store readings (keep last 100 readings)\ncontext.stats.flowReadings.push(data.flow_rate);\ncontext.stats.powerReadings.push(data.active_power);\ncontext.stats.dailyVolumeReadings.push(data.daily_volume);\n\nif (context.stats.flowReadings.length > 100) context.stats.flowReadings.shift();\nif (context.stats.powerReadings.length > 100) context.stats.powerReadings.shift();\nif (context.stats.dailyVolumeReadings.length > 100) context.stats.dailyVolumeReadings.shift();\n\n// Track daily resets\nif (data.last_reset_date !== context.stats.lastResetDate) {\n    context.stats.lastResetDate = data.last_reset_date;\n    context.stats.dailyResetCount++;\n}\n\n// Calculate statistics\nlet stats = {\n    flow: {\n        current: data.flow_rate || 0,\n        average: calculateAverage(context.stats.flowReadings),\n        max: Math.max(...context.stats.flowReadings),\n        min: Math.min(...context.stats.flowReadings),\n        trend: calculateTrend(context.stats.flowReadings)\n    },\n    power: {\n        current: data.active_power || 0,\n        average: calculateAverage(context.stats.powerReadings),\n        max: Math.max(...context.stats.powerReadings),\n        min: Math.min(...context.stats.powerReadings),\n        trend: calculateTrend(context.stats.powerReadings)\n    },\n    daily_volume: {\n        current: data.daily_volume || 0,\n        average: calculateAverage(context.stats.dailyVolumeReadings),\n        max: Math.max(...context.stats.dailyVolumeReadings),\n        min: Math.min(...context.stats.dailyVolumeReadings)\n    },\n    totals: {\n        total_volume: data.total_volume || 0,\n        daily_volume: data.daily_volume || 0,\n        energy: data.energy || 0,\n        runtime: Math.floor((Date.now() - context.stats.startTime) / 1000), // seconds\n        daily_resets: context.stats.dailyResetCount\n    },\n    device_info: {\n        device_id: data.device_id,\n        location: data.location,\n        timestamp: data.timestamp,\n        last_reset_date: data.last_reset_date,\n        daily_reset_pending: data.daily_reset_pending || false,\n        status: data.status\n    }\n};\n\n// Helper functions\nfunction calculateAverage(arr) {\n    if (arr.length === 0) return 0;\n    let sum = arr.reduce((a, b) => a + b, 0);\n    return sum / arr.length;\n}\n\nfunction calculateTrend(arr) {\n    if (arr.length < 2) return 'stable';\n    let last = arr[arr.length - 1];\n    let prev = arr[arr.length - 2];\n    let diff = last - prev;\n    \n    if (Math.abs(diff) < 0.1) return 'stable';\n    return diff > 0 ? 'increasing' : 'decreasing';\n}\n\n// Add stats to message\nmsg.stats = stats;\n\n// Log stats every 10 readings\nif (context.stats.flowReadings.length % 10 === 0) {\n    node.log(`Stats - Device: ${stats.device_info.device_id}, Flow: ${stats.flow.current.toFixed(1)} L/min, Daily Vol: ${stats.daily_volume.current.toFixed(1)} L, Power: ${stats.power.current.toFixed(0)} W`);\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 450,
+        "y": 220,
+        "wires": [
+            [
+                "92156bcce8e94e63",
+                "7b0a2fb4c12a30df"
+            ]
+        ]
+    },
+    {
+        "id": "fabf6da1d3d65d7e",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Format CSV Data",
+        "func": "// Format data for CSV storage (updated for new payload)\nlet data = msg.payload;\nlet timestamp = data.timestamp || new Date().toISOString();\n\n// Create CSV line with new fields\nlet csvLine = `\"${timestamp}\",\"${data.device_id || 'Plumb-01'}\",\"${data.location || 'PE'}\",` +\n              `${data.flow_rate || 0},${data.total_volume || 0},${data.daily_volume || 0},` +\n              `${data.voltage || 0},${data.current || 0},` +\n              `${data.active_power || 0},${data.energy || 0},` +\n              `${data.frequency || 0},${data.power_factor || 0},` +\n              `\"${data.last_reset_date || ''}\",${data.daily_reset_pending ? 1 : 0},` +\n              `\"${data.status || 'offline'}\"`;\n\nmsg.payload = csvLine;\nmsg.filename = `data/sensor_${data.device_id || 'unknown'}_${new Date().toISOString().slice(0, 10)}.csv`;\n\n// Add header if file doesn't exist\nif (!context.fileExists) {\n    msg.header = '\"Timestamp\",\"DeviceID\",\"Location\",\"FlowRate(L/min)\",\"TotalVolume(L)\",\"DailyVolume(L)\",\"Voltage(V)\",\"Current(A)\",\"Power(W)\",\"Energy(kWh)\",\"Frequency(Hz)\",\"PowerFactor\",\"LastResetDate\",\"DailyResetPending\",\"Status\"';\n    context.fileExists = true;\n}\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 450,
+        "y": 260,
+        "wires": [
+            [
+                "86ccbe55286e5601"
+            ]
+        ]
+    },
+    {
+        "id": "16a5d0c478603a27",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "SQL Data Processing",
+        "func": "// Process data for SQL database (updated for new payload)\nif (!msg.payload.device_id || !msg.payload.timestamp) {\n    node.warn(\"Invalid data: missing device_id or timestamp\");\n    return null;\n}\n\n// Add server timestamp\nconst now = new Date();\nconst formatDateForSQL = (date) => {\n    const pad = (n) => n < 10 ? '0' + n : n;\n    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +\n           `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;\n};\n\nmsg.server_time = formatDateForSQL(now);\n\n// Parse sensor timestamp\nlet sensorTimeStr = msg.payload.timestamp;\nif (sensorTimeStr.includes('T')) {\n    sensorTimeStr = sensorTimeStr.replace('T', ' ');\n}\n\n// Validate date format\nconst isValidDate = (dateStr) => {\n    const regex = /^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/;\n    return regex.test(dateStr);\n};\n\nif (!isValidDate(sensorTimeStr)) {\n    node.warn(`Invalid date format: ${sensorTimeStr}`);\n    sensorTimeStr = msg.server_time;\n}\n\n// Prepare SQL data structure with new fields\nmsg.sqlData = {\n    device_id: msg.payload.device_id,\n    location: msg.payload.location || \"Unknown\",\n    flow_rate: parseFloat(msg.payload.flow_rate) || 0,\n    total_volume: parseFloat(msg.payload.total_volume) || 0,\n    daily_volume: parseFloat(msg.payload.daily_volume) || 0,\n    power: parseFloat(msg.payload.active_power) || 0,\n    voltage: parseFloat(msg.payload.voltage) || 0,\n    current_amps: parseFloat(msg.payload.current) || 0,\n    energy: parseFloat(msg.payload.energy) || 0,\n    frequency: parseFloat(msg.payload.frequency) || 0,\n    power_factor: parseFloat(msg.payload.power_factor) || 0,\n    last_reset_date: msg.payload.last_reset_date || '',\n    daily_reset_pending: msg.payload.daily_reset_pending ? 1 : 0,\n    device_status: msg.payload.status || 'offline',\n    sensor_time: sensorTimeStr,\n    server_time: msg.server_time,\n    mqtt_topic: msg.topic\n};\n\n// Add for dashboard\nmsg.dashboard = {\n    device_id: msg.sqlData.device_id,\n    location: msg.sqlData.location,\n    flow_rate: msg.sqlData.flow_rate,\n    total_volume: msg.sqlData.total_volume,\n    daily_volume: msg.sqlData.daily_volume,\n    power: msg.sqlData.power,\n    voltage: msg.sqlData.voltage,\n    current: msg.sqlData.current_amps,\n    energy: msg.sqlData.energy,\n    frequency: msg.sqlData.frequency,\n    power_factor: msg.sqlData.power_factor,\n    last_reset_date: msg.sqlData.last_reset_date,\n    daily_reset_pending: msg.sqlData.daily_reset_pending,\n    device_status: msg.sqlData.device_status,\n    timestamp: msg.sqlData.sensor_time\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 480,
+        "y": 300,
+        "wires": [
+            [
+                "172b3ba4e82b25af"
+            ]
+        ]
+    },
+    {
+        "id": "172b3ba4e82b25af",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Validate SQL Data",
+        "func": "// Validate and transform data for SQL\nfunction transformTimestamp(timestamp) {\n    if (!timestamp) return null;\n    \n    // Remove milliseconds if present\n    timestamp = timestamp.split('.')[0];\n    \n    // Replace 'T' with space for ISO 8601\n    timestamp = timestamp.replace('T', ' ');\n    \n    // Ensure format: YYYY-MM-DD HH:MM:SS\n    const datePattern = /^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/;\n    \n    if (!datePattern.test(timestamp)) {\n        // Try to parse and reformat\n        try {\n            const date = new Date(timestamp);\n            if (!isNaN(date)) {\n                const pad = (n) => n < 10 ? '0' + n : n;\n                return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ` +\n                       `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;\n            }\n        } catch (e) {\n            node.warn(`Failed to parse timestamp: ${timestamp}`);\n            return null;\n        }\n    }\n    \n    return timestamp;\n}\n\n// Transform data\nmsg.dbPayload = {\n    ...msg.sqlData,\n    sensor_time: transformTimestamp(msg.sqlData.sensor_time),\n    server_time: transformTimestamp(msg.sqlData.server_time),\n    last_reset_date: msg.sqlData.last_reset_date || null\n};\n\n// Validate required fields\nif (!msg.dbPayload.sensor_time || !msg.dbPayload.server_time) {\n    msg.error = \"Invalid timestamp format\";\n    node.error(msg.error, msg);\n    return null;\n}\n\n// Additional validation\nconst numericFields = ['flow_rate', 'total_volume', 'daily_volume', 'power', 'voltage', 'current_amps', 'energy', 'frequency', 'power_factor'];\nlet hasError = false;\n\nnumericFields.forEach(field => {\n    const value = msg.dbPayload[field];\n    if (isNaN(value) || value === null || value === undefined) {\n        msg.error = `Invalid ${field}: ${value}`;\n        node.warn(msg.error);\n        hasError = true;\n    }\n});\n\nif (hasError) {\n    return null;\n}\n\nnode.log(`Validated data for device: ${msg.dbPayload.device_id}`);\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 810,
+        "y": 300,
+        "wires": [
+            [
+                "493a85e4a829a990"
+            ]
+        ]
+    },
+    {
+        "id": "493a85e4a829a990",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Prepare SQL Insert",
+        "func": "// Prepare data for database insertion\nmsg.dbPayload = msg.dbPayload;\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1110,
+        "y": 300,
+        "wires": [
+            [
+                "9040224b05d5affa"
+            ]
+        ]
+    },
+    {
+        "id": "9040224b05d5affa",
+        "type": "MSSQL",
+        "z": "industrial-monitoring",
+        "mssqlCN": "a51e405c.10f64",
+        "name": "Save to Database",
+        "outField": "payload",
+        "returnType": "1",
+        "throwErrors": 1,
+        "query": "INSERT INTO flow_sensor_data (\n    device_id,\n    location,\n    flow_rate,\n    total_volume,\n    daily_volume,\n    power,\n    voltage,\n    current_amps,\n    energy,\n    frequency,\n    power_factor,\n    last_reset_date,\n    daily_reset_pending,\n    device_status,\n    sensor_time,\n    server_time,\n    mqtt_topic\n) VALUES (\n    @device_id,\n    @location,\n    @flow_rate,\n    @total_volume,\n    @daily_volume,\n    @power,\n    @voltage,\n    @current_amps,\n    @energy,\n    @frequency,\n    @power_factor,\n    @last_reset_date,\n    @daily_reset_pending,\n    @device_status,\n    @sensor_time,\n    @server_time,\n    @mqtt_topic\n);",
+        "modeOpt": "",
+        "modeOptType": "query",
+        "queryOpt": "",
+        "queryOptType": "editor",
+        "paramsOpt": "",
+        "paramsOptType": "editor",
+        "rows": "",
+        "rowsType": "msg",
+        "parseMustache": true,
+        "params": [
+            {
+                "output": false,
+                "name": "device_id",
+                "type": "VarChar(20)",
+                "valueType": "msg",
+                "value": "dbPayload.device_id",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "location",
+                "type": "VarChar(50)",
+                "valueType": "msg",
+                "value": "dbPayload.location",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "flow_rate",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.flow_rate",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "total_volume",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.total_volume",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "daily_volume",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.daily_volume",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "power",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.power",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "voltage",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.voltage",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "current_amps",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.current_amps",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "energy",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.energy",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "frequency",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.frequency",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "power_factor",
+                "type": "Float",
+                "valueType": "msg",
+                "value": "dbPayload.power_factor",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "last_reset_date",
+                "type": "VarChar(20)",
+                "valueType": "msg",
+                "value": "dbPayload.last_reset_date",
+                "options": {
+                    "nullable": true,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "daily_reset_pending",
+                "type": "Bit",
+                "valueType": "msg",
+                "value": "dbPayload.daily_reset_pending",
+                "options": {
+                    "nullable": true,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "device_status",
+                "type": "VarChar(10)",
+                "valueType": "msg",
+                "value": "dbPayload.device_status",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "sensor_time",
+                "type": "DateTime",
+                "valueType": "msg",
+                "value": "dbPayload.sensor_time",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "server_time",
+                "type": "DateTime",
+                "valueType": "msg",
+                "value": "dbPayload.server_time",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            },
+            {
+                "output": false,
+                "name": "mqtt_topic",
+                "type": "VarChar(100)",
+                "valueType": "msg",
+                "value": "dbPayload.mqtt_topic",
+                "options": {
+                    "nullable": false,
+                    "primary": false,
+                    "identity": false,
+                    "readOnly": false
+                }
+            }
+        ],
+        "x": 1330,
+        "y": 300,
+        "wires": [
+            [
+                "8d4b9903d6ec02dd"
+            ]
+        ]
+    },
+    {
+        "id": "8d4b9903d6ec02dd",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Database Success",
+        "func": "msg.db_status = {\n    success: true,\n    timestamp: new Date().toISOString(),\n    device_id: msg.dbPayload.device_id,\n    daily_volume: msg.dbPayload.daily_volume,\n    last_reset_date: msg.dbPayload.last_reset_date\n};\n\nnode.log(`Data saved to database for device: ${msg.dbPayload.device_id}, Daily Volume: ${msg.dbPayload.daily_volume} L`);\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1550,
+        "y": 300,
+        "wires": [
+            [
+                "388639f2848eb634"
+            ]
+        ]
+    },
+    {
+        "id": "388639f2848eb634",
+        "type": "debug",
+        "z": "industrial-monitoring",
+        "name": "DB Success",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "true",
+        "targetType": "full",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1730,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "11fc1e14c9cbe1e6",
+        "type": "debug",
+        "z": "industrial-monitoring",
+        "name": "Debug Raw Data",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "x": 450,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "31826edc8642bc50",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store Raw JSON",
+        "filename": "data/raw/sensor_data_raw.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 450,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "544ad5886e2865a4",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store Valid Data",
+        "filename": "data/processed/sensor_data_valid.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 700,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "86ccbe55286e5601",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Write CSV File",
+        "filename": "",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 700,
+        "y": 260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a9502051bb7b8542",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Log Alarms",
+        "filename": "logs/alarms.log",
+        "filenameType": "str",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 990,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d0cf2f4f16170798",
+        "type": "function",
+        "z": "industrial-monitoring",
+        "name": "Trigger Notifications",
+        "func": "// Trigger notifications for alarms\nlet data = msg;\n\nif (data.has_alarms && data.alarms.length > 0) {\n    // Log to console\n    console.log(\"=== ALARM NOTIFICATION ===\");\n    console.log(`Device: ${data.payload.device_id || 'Unknown'}`);\n    console.log(`Time: ${new Date().toISOString()}`);\n    console.log(`Daily Volume: ${data.payload.daily_volume || 0} L`);\n    console.log(`Last Reset Date: ${data.payload.last_reset_date || 'N/A'}`);\n    \n    data.alarms.forEach((alarm, index) => {\n        console.log(`Alarm ${index + 1}: ${alarm.severity} - ${alarm.type}`);\n        console.log(`Message: ${alarm.message}`);\n    });\n    console.log(\"==========================\");\n    \n    // Send email for HIGH severity alarms\n    let highSeverityAlarms = data.alarms.filter(a => a.severity === 'HIGH');\n    if (highSeverityAlarms.length > 0) {\n        node.warn(`HIGH severity alarms detected: ${highSeverityAlarms.length}`);\n        // Email notification can be added here\n        msg.notification = {\n            type: 'email',\n            severity: 'HIGH',\n            device_id: data.payload.device_id,\n            alarms: highSeverityAlarms,\n            timestamp: new Date().toISOString()\n        };\n    }\n}\n\nreturn data;",
+        "outputs": 1,
+        "noerr": 0,
+        "x": 1020,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "92156bcce8e94e63",
+        "type": "file",
+        "z": "industrial-monitoring",
+        "name": "Store Statistics",
+        "filename": "data/stats/sensor_statistics.json",
+        "appendNewline": true,
+        "createDir": true,
+        "overwriteFile": "false",
+        "x": 700,
+        "y": 180,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "7b0a2fb4c12a30df",
+        "type": "debug",
+        "z": "industrial-monitoring",
+        "name": "Log Statistics",
+        "active": true,
+        "tosidebar": true,
+        "console": true,
+        "tostatus": false,
+        "complete": "stats",
+        "targetType": "msg",
+        "x": 700,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "99ea319b66e60598",
+        "type": "mqtt-broker",
+        "name": "Xi-105",
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "a51e405c.10f64",
+        "type": "MSSQL-CN",
+        "tdsVersion": "7_4",
+        "name": "SSQL-Chadeas",
+        "server": "localhost",
+        "port": "1433",
+        "encyption": false,
+        "trustServerCertificate": true,
+        "database": "Chaldeas",
+        "useUTC": false,
+        "connectTimeout": "15000",
+        "requestTimeout": "15000",
+        "cancelTimeout": "5000",
+        "pool": "5",
+        "parseJSON": false,
+        "enableArithAbort": true,
+        "readOnlyIntent": false
+    },
+    {
+        "id": "428b20848f716499",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-mssql-plus": "0.13.1"
+        }
+    }
+]
