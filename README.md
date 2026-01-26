@@ -43,3 +43,7 @@ For Node-Red Just Import The "Node-Red IoT Flow Monitoring Multi Device Bridge.j
 Dont forget setting mqtt configuration and database cofiguration in node-red 
 
 For MSSQL Database use file script.sql and execute in MSSQL Query 
+My Database Configuration
+Database Name : Chaldeas
+User : ArchetypeInception
+Password : PaperMoon
