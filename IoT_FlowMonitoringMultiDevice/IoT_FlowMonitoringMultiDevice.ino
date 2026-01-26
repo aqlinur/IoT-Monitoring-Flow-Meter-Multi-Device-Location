@@ -69,7 +69,7 @@ const uint8_t PZEM_ADDRESS = 0x01;
 
 // Pin Configuration (Industrial Grade)
 #ifndef FLOW_SENSOR_PIN
-  #define FLOW_SENSOR_PIN 34
+  #define FLOW_SENSOR_PIN 12
 #endif
 
 #ifndef SD_CHIP_SELECT
